@@ -25,7 +25,9 @@ report_automation_versioning_ci_cd/
 │   ├── validate_data.py          # Валидация данных
 │   ├── train_model.py            # Обучение модели
 │   ├── evaluate_model.py         # Оценка модели
-│   └── init_dvc.py               # Инициализация DVC
+│   ├── init_dvc.py               # Инициализация DVC
+│   ├── setup_s3_remote.py        # Автоматическая настройка AWS S3
+│   └── setup_minio_remote.py     # Автоматическая настройка MinIO
 ├── config/                        # Конфигурация
 │   └── model_config.yaml         # Параметры модели и пороги качества
 ├── reports/                       # Отчеты и результаты
@@ -43,49 +45,78 @@ report_automation_versioning_ci_cd/
 ├── .dvc/                          # DVC конфигурация (создается при dvc init)
 │   └── config                     # Конфигурация DVC
 ├── dvc.yaml                       # DVC pipeline определение
+├── params.yaml                    # Параметры модели для DVC (отслеживание изменений)
 ├── .dvcignore                    # Игнорируемые DVC файлы
 ├── .gitignore                    # Игнорируемые Git файлы
 ├── requirements.txt              # Python зависимости
 ├── pytest.ini                   # Конфигурация pytest
 ├── Makefile                      # Make команды для удобства
+├── docker-compose.minio.yml      # Docker Compose для MinIO
 ├── setup.sh                      # Скрипт первоначальной настройки
 └── main.py                       # Главный скрипт проекта
 ```
 
 ## Установка
 
-### Быстрая настройка
+### Требования
+
+- Python 3.8 или выше
+- pip
+- Git (для версионирования)
+
+### Системные зависимости (Linux/Debian/Ubuntu)
+
+Перед созданием виртуального окружения установите необходимые системные пакеты:
 
 ```bash
-# Клонируйте репозиторий
+# Для Debian/Ubuntu
+sudo apt update
+sudo apt install python3-venv python3-pip
+```
+
+### Шаги установки
+
+1. Клонируйте репозиторий (если еще не сделано):
+```bash
 git clone <repository-url>
 cd report_automation_versioning_ci_cd
-
-# Автоматическая настройка
-./setup.sh
 ```
 
-### Ручная настройка
-
-1. Создайте виртуальное окружение:
+2. Создайте виртуальное окружение:
 ```bash
+# Linux/Mac
+python3 -m venv venv
+source venv/bin/activate
+
+# Windows
 python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# или
-venv\Scripts\activate  # Windows
+venv\Scripts\activate
 ```
 
-2. Установите зависимости:
+3. Обновите pip:
+```bash
+pip install --upgrade pip
+```
+
+4. Установите зависимости:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Инициализируйте DVC:
+5. Инициализируйте DVC:
 ```bash
-python scripts/init_dvc.py
-# или вручную:
-dvc init
-dvc add data/housing.csv
+python3 scripts/init_dvc.py
+```
+
+6. (Опционально) Настройте удаленное хранилище:
+```bash
+# Вариант 1: MinIO (рекомендуется для локальной разработки)
+# Сначала запустите MinIO: docker run -p 9000:9000 -p 9001:9001 minio/minio server /data --console-address ':9001'
+python3 scripts/setup_minio_remote.py
+
+# Вариант 2: AWS S3
+# Убедитесь, что AWS CLI установлен и настроен (aws configure)
+python3 scripts/setup_s3_remote.py
 ```
 
 ## Использование
@@ -94,6 +125,8 @@ dvc add data/housing.csv
 
 ```bash
 python scripts/validate_data.py
+# или
+python3 scripts/validate_data.py
 ```
 
 Проверяет качество данных перед обучением модели:
@@ -110,6 +143,8 @@ python scripts/validate_data.py
 
 ```bash
 python scripts/train_model.py
+# или
+python3 scripts/train_model.py
 ```
 
 Обучает модель RandomForestRegressor на данных Boston Housing и сохраняет:
@@ -121,6 +156,8 @@ python scripts/train_model.py
 
 ```bash
 python scripts/evaluate_model.py
+# или
+python3 scripts/evaluate_model.py
 ```
 
 Выполняет детальную оценку модели и создает:
@@ -181,23 +218,27 @@ GitHub Actions автоматически выполняет следующие 
 
 ### Локальный запуск проверок
 
-Перед push рекомендуется проверить:
+Перед push рекомендуется проверить (убедитесь, что виртуальное окружение активировано):
 
 ```bash
 # Валидация данных
-python scripts/validate_data.py
+python3 scripts/validate_data.py
 
 # Обучение и проверка качества
-python scripts/train_model.py
+python3 scripts/train_model.py
 
 # Оценка модели
-python scripts/evaluate_model.py
+python3 scripts/evaluate_model.py
 
 # Тесты
 pytest
 ```
 
 ## Версионирование с DVC
+
+DVC позволяет версионировать большие файлы (данные и модели) отдельно от Git. Файлы хранятся в кеше DVC, а в Git сохраняются только метаданные (`.dvc` файлы).
+
+> **Для начала работы**: Удаленное хранилище не обязательно. Можно работать с локальным хранилищем (`.dvc/cache`). Удаленное хранилище настраивается позже, когда нужно делиться данными с командой или использовать в CI/CD.
 
 ### Добавление данных в DVC
 
@@ -232,25 +273,281 @@ dvc checkout models/model.pkl.dvc@v1.0
 
 ### Настройка удаленного хранилища DVC
 
-Для продакшена рекомендуется использовать облачное хранилище:
+> **Примечание**: Удаленное хранилище опционально. Для локальной разработки можно использовать локальное хранилище (по умолчанию `.dvc/cache`). Удаленное хранилище необходимо для:
+> - Совместной работы в команде
+> - Резервного копирования данных и моделей
+> - Использования в CI/CD пайплайне
 
-**AWS S3:**
+**Параметры команды:**
+- `<name>` - произвольное имя для удаленного хранилища (например: `s3remote`, `gsremote`, `azure`)
+- `<url>` - URL хранилища, зависит от провайдера (см. примеры ниже)
+- `-d` - флаг устанавливает это хранилище как хранилище по умолчанию
+
+#### AWS S3
+
+##### Автоматическая настройка (рекомендуется)
+
+Используйте скрипт для автоматической настройки:
+
 ```bash
-dvc remote add -d s3remote s3://my-bucket/dvc-storage
-dvc remote modify s3remote credentialpath ~/.aws/credentials
-dvc push
+python3 scripts/setup_s3_remote.py
 ```
 
-**Google Cloud Storage:**
+Скрипт автоматически:
+- Проверит установку AWS CLI и DVC
+- **Автоматически создаст AWS credentials** (IAM пользователь и access key) или предложит ввести существующие
+- Создаст S3 bucket (или использует существующий)
+- Настроит политику доступа для IAM пользователя к S3 bucket
+- Настроит DVC remote
+- Протестирует подключение
+
+**Требования перед запуском:**
+1. Установлен AWS CLI: `pip install awscli` или следуйте [официальным инструкциям](https://aws.amazon.com/cli/)
+2. DVC инициализирован: `python3 scripts/init_dvc.py`
+
+**Варианты настройки credentials:**
+
+- **Ввод вручную** (вариант 2, рекомендуется для начала):
+  - Получите Access Key ID и Secret Access Key из [AWS Console](https://console.aws.amazon.com/iam/home#/security_credentials)
+  - Или создайте нового IAM пользователя: [AWS IAM Users](https://console.aws.amazon.com/iam/home#/users$new)
+  - Скрипт сохранит их в `~/.aws/credentials`
+
+- **Автоматическое создание** (вариант 1):
+  - ⚠️ **Требуются валидные AWS credentials администратора**
+  - Сначала настройте базовые credentials: `aws configure`
+  - Затем скрипт создаст IAM пользователя с минимальными правами доступа к S3 bucket
+  - Полезно для создания отдельного пользователя только для DVC
+
+- **Переменные окружения** (вариант 3):
+  - Установите `AWS_ACCESS_KEY_ID` и `AWS_SECRET_ACCESS_KEY`
+  - Затем запустите скрипт снова
+
+> **Примечание**: Если вы получили ошибку "InvalidClientTokenId" при выборе варианта 1, это означает, что у вас нет валидных AWS credentials. Используйте вариант 2 для ввода credentials вручную.
+
+##### Ручная настройка
+
+Если предпочитаете настроить вручную:
+
+1. **Создайте S3 bucket** (через AWS Console или CLI):
+   ```bash
+   aws s3 mb s3://my-dvc-storage-bucket
+   ```
+
+2. **Настройте аутентификацию** (если еще не настроено):
+   ```bash
+   aws configure
+   # Введите: Access Key ID, Secret Access Key, регион
+   ```
+
+3. **Добавьте удаленное хранилище DVC:**
+   ```bash
+   # name: s3remote (можете выбрать любое имя)
+   # url: s3://имя-вашего-bucket/путь-для-dvc
+   dvc remote add -d s3remote s3://my-dvc-storage-bucket/dvc-storage
+   
+   # Настройте путь к credentials (опционально, если используете стандартный путь)
+   dvc remote modify s3remote credentialpath ~/.aws/credentials
+   ```
+
+4. **Проверьте настройку:**
+   ```bash
+   dvc remote list
+   ```
+
+5. **Загрузите данные:**
+   ```bash
+   dvc push
+   ```
+
+**Пример URL для S3:**
+- `s3://my-bucket-name/dvc-storage` - если bucket в том же регионе
+- `s3://my-bucket-name/dvc-storage --region us-east-1` - с указанием региона
+
+#### MinIO (S3-совместимое хранилище)
+
+MinIO - это S3-совместимое объектное хранилище, которое можно запустить локально или в собственной инфраструктуре. Идеально подходит для разработки и тестирования без необходимости настройки AWS.
+
+##### Установка MinIO
+
+**Через Docker Compose (рекомендуется):**
 ```bash
-dvc remote add -d gsremote gs://my-bucket/dvc-storage
-dvc push
+docker-compose -f docker-compose.minio.yml up -d
 ```
 
-**Azure Blob Storage:**
+**Через Docker:**
 ```bash
-dvc remote add -d azure remote://my-container/dvc-storage
-dvc push
+docker run -d \
+  -p 9000:9000 \
+  -p 9001:9001 \
+  --name minio \
+  -e "MINIO_ROOT_USER=minioadmin" \
+  -e "MINIO_ROOT_PASSWORD=minioadmin" \
+  minio/minio server /data --console-address ':9001'
+```
+
+**Остановка MinIO:**
+```bash
+# Docker Compose
+docker-compose -f docker-compose.minio.yml down
+
+# Docker
+docker stop minio
+docker rm minio
+```
+
+**Локальная установка:**
+```bash
+# Linux
+wget https://dl.min.io/server/minio/release/linux-amd64/minio
+chmod +x minio
+./minio server /data --console-address ':9001'
+```
+
+После запуска MinIO будет доступен:
+- API: http://localhost:9000
+- Console (веб-интерфейс): http://localhost:9001
+- Default credentials: `minioadmin` / `minioadmin`
+
+##### Автоматическая настройка MinIO для DVC
+
+Используйте скрипт для автоматической настройки:
+
+```bash
+python3 scripts/setup_minio_remote.py
+```
+
+Скрипт автоматически:
+- Проверит установку DVC
+- Запросит параметры MinIO (endpoint, credentials, bucket)
+- Создаст bucket в MinIO
+- Настроит DVC remote с правильным endpoint
+- Протестирует подключение
+
+**Требования:**
+- MinIO должен быть запущен перед настройкой
+- DVC инициализирован: `python3 scripts/init_dvc.py`
+
+##### Ручная настройка MinIO
+
+1. **Создайте bucket** через MinIO Console (http://localhost:9001) или через AWS CLI:
+   ```bash
+   aws --endpoint-url http://localhost:9000 s3 mb s3://dvc-storage
+   ```
+
+2. **Добавьте удаленное хранилище DVC:**
+   ```bash
+   # Добавляем remote
+   dvc remote add -d minio s3://dvc-storage/dvc-storage
+   
+   # Настраиваем endpoint для MinIO
+   dvc remote modify minio endpointurl http://localhost:9000
+   
+   # Настраиваем credentials
+   dvc remote modify minio access_key_id minioadmin
+   dvc remote modify minio secret_access_key minioadmin
+   ```
+
+3. **Проверьте настройку:**
+   ```bash
+   dvc remote list
+   dvc remote modify minio --list
+   ```
+
+4. **Загрузите данные:**
+   ```bash
+   dvc push
+   ```
+
+**Преимущества MinIO:**
+- ✅ Работает локально без облачных сервисов
+- ✅ S3-совместимый API (работает с DVC без изменений)
+- ✅ Бесплатный и open-source
+- ✅ Идеально для разработки и тестирования
+- ✅ Можно использовать в production
+
+#### Google Cloud Storage
+
+1. **Создайте GCS bucket** (через Console или gsutil):
+   ```bash
+   gsutil mb gs://my-dvc-storage-bucket
+   ```
+
+2. **Настройте аутентификацию:**
+   ```bash
+   gcloud auth application-default login
+   ```
+
+3. **Добавьте удаленное хранилище DVC:**
+   ```bash
+   # name: gsremote (можете выбрать любое имя)
+   # url: gs://имя-вашего-bucket/путь-для-dvc
+   dvc remote add -d gsremote gs://my-dvc-storage-bucket/dvc-storage
+   ```
+
+4. **Загрузите данные:**
+   ```bash
+   dvc push
+   ```
+
+**Пример URL для GCS:**
+- `gs://my-bucket-name/dvc-storage`
+
+#### Azure Blob Storage
+
+1. **Создайте Storage Account и Container** (через Portal или CLI):
+   ```bash
+   az storage account create --name mystorageaccount --resource-group myResourceGroup
+   az storage container create --name dvc-storage --account-name mystorageaccount
+   ```
+
+2. **Настройте аутентификацию:**
+   ```bash
+   az login
+   ```
+
+3. **Добавьте удаленное хранилище DVC:**
+   ```bash
+   # name: azure (можете выбрать любое имя)
+   # url: azure://имя-контейнера
+   dvc remote add -d azure azure://dvc-storage
+   
+   # Настройте учетные данные
+   dvc remote modify azure account_name mystorageaccount
+   dvc remote modify azure account_key "your-account-key"
+   ```
+
+**Пример URL для Azure:**
+- `azure://container-name` - после настройки account_name и account_key
+
+#### Локальное хранилище (для разработки)
+
+Если не нужно удаленное хранилище, можно использовать локальную файловую систему:
+
+```bash
+# Создайте директорию для хранилища
+mkdir -p ~/dvc-storage
+
+# Добавьте как удаленное хранилище
+dvc remote add -d local ~/dvc-storage
+
+# Или используйте относительный путь
+dvc remote add -d local ./dvc-storage
+```
+
+#### Просмотр и управление удаленными хранилищами
+
+```bash
+# Список всех удаленных хранилищ
+dvc remote list
+
+# Просмотр настроек конкретного хранилища
+dvc remote modify s3remote --list
+
+# Удаление удаленного хранилища
+dvc remote remove s3remote
+
+# Изменение URL хранилища
+dvc remote modify s3remote url s3://new-bucket/dvc-storage
 ```
 
 ### Синхронизация
@@ -293,7 +590,14 @@ pytest --cov=scripts --cov-report=html
 
 ### Параметры модели
 
-Параметры модели настраиваются в `config/model_config.yaml`:
+Параметры модели настраиваются в двух файлах:
+
+1. **`config/model_config.yaml`** - основной файл конфигурации, используется скриптами
+2. **`params.yaml`** - файл для DVC, отслеживает изменения параметров для воспроизводимости
+
+Оба файла содержат одинаковые параметры. При изменении параметров обновляйте оба файла:
+
+**`config/model_config.yaml`** (используется скриптами):
 
 ```yaml
 model:
@@ -319,6 +623,8 @@ thresholds:
   max_rmse: 5.0
 ```
 
+> **Примечание**: DVC отслеживает изменения в `config/model_config.yaml` через зависимости (`deps`). При изменении конфигурации DVC автоматически запустит переобучение при `dvc repro`.
+
 ### DVC Pipeline
 
 Определен в `dvc.yaml`:
@@ -333,7 +639,6 @@ stages:
   train_model:
     cmd: python scripts/train_model.py
     deps: [data/housing.csv, scripts/train_model.py, config/model_config.yaml]
-    params: [config/model_config.yaml]
     outs: [models/model.pkl, models/metrics.json, reports/training_report.json]
 
   evaluate_model:
@@ -389,7 +694,7 @@ dvc checkout data/housing.csv.dvc@v1.0
 
 ```bash
 # Обучение через скрипт
-python scripts/train_model.py
+python3 scripts/train_model.py
 
 # Или через DVC pipeline
 dvc repro train_model
@@ -456,7 +761,7 @@ cat models/metrics.json
 cat config/model_config.yaml
 
 # Запустить с отладкой
-python -u scripts/train_model.py
+python3 -u scripts/train_model.py
 ```
 
 ## Дальнейшее развитие

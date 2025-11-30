@@ -1,0 +1,26 @@
+# Параметры модели для DVC
+# Этот файл используется DVC для отслеживания изменений параметров
+# Параметры также определены в config/model_config.yaml
+
+model:
+  name: "RandomForestRegressor"
+  params:
+    n_estimators: 100
+    max_depth: 10
+    random_state: 42
+    min_samples_split: 2
+    min_samples_leaf: 1
+
+data:
+  target_column: "MEDV"
+  test_size: 0.2
+  random_state: 42
+
+metrics:
+  primary: "rmse"
+  secondary: ["mae", "r2"]
+
+thresholds:
+  min_r2: 0.7
+  max_rmse: 5.0
+

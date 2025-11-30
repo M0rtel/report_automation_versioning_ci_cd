@@ -1,6 +1,9 @@
 [core]
-    remote = local
-
+    remote = minio
 ['remote "local"']
     url = .dvc/cache
-
+['remote "minio"']
+    url = s3://dvc-storage-gorobets/dvc-storage
+    endpointurl = http://127.0.0.1:9001
+    access_key_id = minioadmin
+    secret_access_key = minioadmin

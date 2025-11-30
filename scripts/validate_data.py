@@ -10,6 +10,27 @@ import json
 import sys
 from pathlib import Path
 
+def convert_numpy_types(obj):
+    """
+    Рекурсивно конвертирует NumPy типы в нативные Python типы для JSON сериализации.
+    """
+    if isinstance(obj, (np.integer, np.int64, np.int32, np.int16, np.int8)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64, np.float32, np.float16)):
+        return float(obj)
+    elif isinstance(obj, (np.bool_, bool)):
+        return bool(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [convert_numpy_types(item) for item in obj]
+    elif isinstance(obj, pd.Series):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    else:
+        return obj
+
 def validate_data(data_path: str, output_path: str) -> dict:
     """
     Валидация данных Boston Housing.
@@ -128,6 +149,9 @@ def validate_data(data_path: str, output_path: str) -> dict:
     )
     
     validation_results["status"] = "success" if all_passed else "warning"
+    
+    # Конвертируем NumPy типы в нативные Python типы для JSON сериализации
+    validation_results = convert_numpy_types(validation_results)
     
     # Сохранение отчета
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)

@@ -13,8 +13,6 @@ stages:
       - data/housing.csv
       - scripts/train_model.py
       - config/model_config.yaml
-    params:
-      - config/model_config.yaml
     outs:
       - models/model.pkl
       - models/metrics.json
