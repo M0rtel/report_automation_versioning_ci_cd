@@ -1,0 +1,32 @@
+stages:
+  validate_data:
+    cmd: python scripts/validate_data.py
+    deps:
+      - data/housing.csv
+      - scripts/validate_data.py
+    outs:
+      - reports/data_validation_report.json
+
+  train_model:
+    cmd: python scripts/train_model.py
+    deps:
+      - data/housing.csv
+      - scripts/train_model.py
+      - config/model_config.yaml
+    params:
+      - config/model_config.yaml
+    outs:
+      - models/model.pkl
+      - models/metrics.json
+      - reports/training_report.json
+
+  evaluate_model:
+    cmd: python scripts/evaluate_model.py
+    deps:
+      - models/model.pkl
+      - data/housing.csv
+      - scripts/evaluate_model.py
+    outs:
+      - reports/evaluation_report.json
+      - reports/feature_importance.png
+

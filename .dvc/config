@@ -1,0 +1,6 @@
+[core]
+    remote = local
+
+['remote "local"']
+    url = .dvc/cache
+

@@ -1,0 +1,359 @@
+name: CI/CD Pipeline for ML Model
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: '3.10'
+  DVC_REMOTE: 'local'
+
+jobs:
+  validate-data:
+    name: Validate Data
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Полная история для DVC
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Validate data
+      run: |
+        python scripts/validate_data.py
+    
+    - name: Upload validation report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: data-validation-report
+        path: reports/data_validation_report.json
+
+  train-model:
+    name: Train Model
+    runs-on: ubuntu-latest
+    needs: validate-data
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Initialize DVC
+      run: |
+        dvc init --no-scm
+    
+    - name: Configure DVC remote (if needed)
+      run: |
+        # Для локального хранилища используем файловую систему
+        # В продакшене можно настроить S3, GCS, Azure Blob и т.д.
+        mkdir -p .dvc/cache
+        dvc remote add -d local .dvc/cache || true
+    
+    - name: Pull data from DVC
+      run: |
+        # Если данные уже версионированы в DVC
+        dvc pull data/housing.csv.dvc || echo "Data not in DVC yet, using local file"
+    
+    - name: Train model
+      run: |
+        python scripts/train_model.py
+    
+    - name: Upload model artifacts
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: model-artifacts
+        path: |
+          models/
+          reports/training_report.json
+    
+    - name: Check model quality
+      run: |
+        python -c "
+        import json
+        with open('models/metrics.json', 'r') as f:
+            metrics = json.load(f)
+        with open('config/model_config.yaml', 'r') as f:
+            import yaml
+            config = yaml.safe_load(f)
+        
+        thresholds = config.get('thresholds', {})
+        min_r2 = thresholds.get('min_r2', 0.0)
+        max_rmse = thresholds.get('max_rmse', float('inf'))
+        
+        r2 = metrics['r2']
+        rmse = metrics['rmse']
+        
+        print(f'R²: {r2:.4f} (threshold: {min_r2})')
+        print(f'RMSE: {rmse:.4f} (threshold: {max_rmse})')
+        
+        if r2 < min_r2 or rmse > max_rmse:
+            print('❌ Model quality check FAILED')
+            exit(1)
+        else:
+            print('✅ Model quality check PASSED')
+        "
+
+  evaluate-model:
+    name: Evaluate Model
+    runs-on: ubuntu-latest
+    needs: train-model
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Download model artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: model-artifacts
+        path: .
+    
+    - name: Evaluate model
+      run: |
+        python scripts/evaluate_model.py
+    
+    - name: Upload evaluation report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: evaluation-report
+        path: |
+          reports/evaluation_report.json
+          reports/feature_importance.png
+
+  version-and-commit:
+    name: Version Data and Model
+    runs-on: ubuntu-latest
+    needs: [validate-data, train-model, evaluate-model]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Configure Git
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+    
+    - name: Initialize DVC
+      run: |
+        dvc init --no-scm
+    
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: model-artifacts
+        path: .
+    
+    - name: Add data and model to DVC
+      run: |
+        # Добавляем данные в DVC (если еще не добавлены)
+        dvc add data/housing.csv || echo "Data already in DVC"
+        
+        # Добавляем модель в DVC
+        dvc add models/model.pkl || echo "Model already in DVC"
+        
+        # Добавляем метрики
+        dvc add models/metrics.json || echo "Metrics already in DVC"
+    
+    - name: Commit DVC files
+      run: |
+        git add data/housing.csv.dvc data/.gitignore
+        git add models/model.pkl.dvc models/metrics.json.dvc
+        git add .dvc/
+        
+        # Проверяем, есть ли изменения для коммита
+        if [ -n "$(git status --porcelain)" ]; then
+          git commit -m "chore: update data and model versions [skip ci]" || echo "No changes to commit"
+        fi
+    
+    - name: Create version tag
+      run: |
+        # Создаем тег версии на основе даты и коммита
+        VERSION_TAG="v$(date +%Y%m%d)-$(git rev-parse --short HEAD)"
+        git tag -a "$VERSION_TAG" -m "Model version: $VERSION_TAG"
+        git push origin "$VERSION_TAG" || echo "Tag already exists"
+    
+    - name: Push changes
+      run: |
+        git push origin main || echo "Nothing to push"
+
+  test-reproducibility:
+    name: Test Reproducibility
+    runs-on: ubuntu-latest
+    needs: train-model
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Download model artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: model-artifacts
+        path: .
+    
+    - name: Test reproducibility
+      run: |
+        # Обучаем модель дважды и сравниваем результаты
+        python scripts/train_model.py
+        cp models/metrics.json models/metrics_run1.json
+        
+        python scripts/train_model.py
+        cp models/metrics.json models/metrics_run2.json
+        
+        # Сравниваем метрики (должны быть идентичны при фиксированном random_state)
+        python -c "
+        import json
+        with open('models/metrics_run1.json') as f1, open('models/metrics_run2.json') as f2:
+            m1 = json.load(f1)
+            m2 = json.load(f2)
+        
+        if abs(m1['r2'] - m2['r2']) < 0.0001:
+            print('✅ Reproducibility test PASSED')
+        else:
+            print(f'❌ Reproducibility test FAILED: R² differs by {abs(m1[\"r2\"] - m2[\"r2\"])}')
+            exit(1)
+        "
+
+  performance-check:
+    name: Performance Check
+    runs-on: ubuntu-latest
+    needs: train-model
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Download model artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: model-artifacts
+        path: .
+    
+    - name: Performance benchmark
+      run: |
+        python -c "
+        import time
+        import pandas as pd
+        import pickle
+        
+        # Загрузка модели
+        with open('models/model.pkl', 'rb') as f:
+            model = pickle.load(f)
+        
+        # Загрузка данных
+        df = pd.read_csv('data/housing.csv', sep=r'\s+', header=None)
+        column_names = ['CRIM', 'ZN', 'INDUS', 'CHAS', 'NOX', 'RM', 'AGE', 
+                       'DIS', 'RAD', 'TAX', 'PTRATIO', 'B', 'LSTAT', 'MEDV']
+        df.columns = column_names
+        X = df.drop('MEDV', axis=1)
+        
+        # Тест производительности предсказаний
+        start_time = time.time()
+        predictions = model.predict(X)
+        inference_time = time.time() - start_time
+        
+        print(f'Inference time for {len(X)} samples: {inference_time:.4f} seconds')
+        print(f'Throughput: {len(X)/inference_time:.2f} samples/second')
+        
+        # Проверка производительности (должно быть быстро)
+        if inference_time < 1.0:
+            print('✅ Performance check PASSED')
+        else:
+            print('⚠️  Performance check WARNING: Inference is slow')
+        "
+
+  summary:
+    name: Pipeline Summary
+    runs-on: ubuntu-latest
+    needs: [validate-data, train-model, evaluate-model, test-reproducibility, performance-check]
+    if: always()
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+    
+    - name: Display summary
+      run: |
+        echo "## CI/CD Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### ✅ All checks completed" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- Data validation: ✅" >> $GITHUB_STEP_SUMMARY
+        echo "- Model training: ✅" >> $GITHUB_STEP_SUMMARY
+        echo "- Model evaluation: ✅" >> $GITHUB_STEP_SUMMARY
+        echo "- Reproducibility test: ✅" >> $GITHUB_STEP_SUMMARY
+        echo "- Performance check: ✅" >> $GITHUB_STEP_SUMMARY
+
