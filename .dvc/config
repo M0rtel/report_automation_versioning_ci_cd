@@ -1,5 +1,6 @@
 [core]
     remote = yandex
+    autostage = true
 ['remote "yandex"']
     url = s3://itmo234/dvc-storage
     endpointurl = https://storage.yandexcloud.net

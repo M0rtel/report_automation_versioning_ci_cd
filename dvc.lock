@@ -5,8 +5,8 @@ stages:
     deps:
     - path: data/housing.csv
       hash: md5
-      md5: d4accdce7a25600298819f8e28e8d593
-      size: 49082
+      md5: 0753d88c59e4641284257d13b7352567
+      size: 42680
     - path: scripts/validate_data.py
       hash: md5
       md5: 74c572822052291981fcf7b7c7fc4be3
@@ -14,8 +14,8 @@ stages:
     outs:
     - path: reports/data_validation_report.json
       hash: md5
-      md5: f272da0a4e6c20e6b43db80914ee6f3f
-      size: 2703
+      md5: 9345e51de506eba3c8d5af2517876fd2
+      size: 2706
   train_model:
     cmd: python scripts/train_model.py
     deps:
@@ -25,8 +25,8 @@ stages:
       size: 325
     - path: data/housing.csv
       hash: md5
-      md5: d4accdce7a25600298819f8e28e8d593
-      size: 49082
+      md5: 0753d88c59e4641284257d13b7352567
+      size: 42680
     - path: scripts/train_model.py
       hash: md5
       md5: 39f5ac3de198194a12dce1d0f9671fe8
@@ -34,27 +34,27 @@ stages:
     outs:
     - path: models/metrics.json
       hash: md5
-      md5: 03f781434d86cbe74283688cc21a8ae4
+      md5: 3707e2d332cd6f705bacd202cc1704c0
       size: 87
     - path: models/model.pkl
       hash: md5
-      md5: 31be6cd52dbf42f60a555a7872280dce
-      size: 2288091
+      md5: b4a4e6f849772fb7a0d5ace9585525ab
+      size: 2011203
     - path: reports/training_report.json
       hash: md5
-      md5: d85b1c6e6b65c33a1e0b97815baa5196
+      md5: fd4eb70ab4de1de1a6c56d9c1c58e059
       size: 823
   evaluate_model:
     cmd: python scripts/evaluate_model.py
     deps:
     - path: data/housing.csv
       hash: md5
-      md5: d4accdce7a25600298819f8e28e8d593
-      size: 49082
+      md5: 0753d88c59e4641284257d13b7352567
+      size: 42680
     - path: models/model.pkl
       hash: md5
-      md5: 31be6cd52dbf42f60a555a7872280dce
-      size: 2288091
+      md5: b4a4e6f849772fb7a0d5ace9585525ab
+      size: 2011203
     - path: scripts/evaluate_model.py
       hash: md5
       md5: 1e289cf3289d120e971d72924c113ee1
@@ -62,9 +62,9 @@ stages:
     outs:
     - path: reports/evaluation_report.json
       hash: md5
-      md5: 1df5ca590f2df295fa87160c7b52f430
-      size: 924
+      md5: 8167bfd8c013df6c5243011a8b012e3d
+      size: 926
     - path: reports/feature_importance.png
       hash: md5
-      md5: 1c0fbe5e1be5cf64b9ec7374459ed4f4
-      size: 40626
+      md5: bac4d3f9d732d4bded7348c0999d683c
+      size: 39841
