@@ -78,9 +78,9 @@ def init_dvc():
     
     print("\n✅ Инициализация DVC завершена!")
     print("\nСледующие шаги:")
-    print("1. Настройте удаленное хранилище: dvc remote add -d <name> <url>")
-    print("2. Закоммитьте .dvc файлы: git add data/housing.csv.dvc .dvc/")
-    print("3. Загрузите данные: dvc push")
+    print("1. Закоммитьте .dvc файлы в Git: git add data/housing.csv.dvc .dvc/")
+    print("2. Создайте коммит: git commit -m 'Add data to DVC'")
+    print("\n💡 Все данные хранятся локально в .dvc/cache")
     
     return True
 

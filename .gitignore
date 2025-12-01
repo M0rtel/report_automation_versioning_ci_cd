@@ -37,6 +37,9 @@ env/
 .dvc/cache
 .dvc/tmp
 .dvc/state
+.dvc/config.local
+# DVC data files (версионируются через .dvc файлы)
+data/housing.csv
 
 # Models and outputs
 models/
@@ -49,6 +52,12 @@ outputs/
 # Data (will be versioned with DVC)
 # data/raw/
 # data/processed/
+
+# Reports (generated files)
+reports/data_validation_report.json
+reports/training_report.json
+reports/evaluation_report.json
+reports/feature_importance.png
 
 # Logs
 *.log
@@ -71,3 +80,10 @@ htmlcov/
 # MLflow
 mlruns/
 
+# Docker
+.dockerignore
+
+# Temporary files
+*.tmp
+*.temp
+.cache/

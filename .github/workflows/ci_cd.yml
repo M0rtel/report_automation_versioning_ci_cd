@@ -68,12 +68,10 @@ jobs:
       run: |
         dvc init --no-scm
     
-    - name: Configure DVC remote (if needed)
+    - name: Configure DVC
       run: |
-        # Для локального хранилища используем файловую систему
-        # В продакшене можно настроить S3, GCS, Azure Blob и т.д.
+        # Используем локальное хранилище DVC
         mkdir -p .dvc/cache
-        dvc remote add -d local .dvc/cache || true
     
     - name: Pull data from DVC
       run: |
