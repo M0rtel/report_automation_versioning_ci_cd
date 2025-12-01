@@ -70,11 +70,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-    
-    - name: Initialize DVC
-      run: |
-        dvc init --no-scm
-    
+
     - name: Pull data from DVC
       run: |
         dvc pull data/housing.csv.dvc || echo "Data not in DVC yet, using local file"
@@ -184,16 +180,16 @@ jobs:
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-    
-    - name: Initialize DVC
-      run: |
-        dvc init --no-scm
-    
+
     - name: Download artifacts
       uses: actions/download-artifact@v4
       with:
         name: model-artifacts
         path: .
+    
+    - name: Pull data from DVC
+      run: |
+        dvc pull data/housing.csv.dvc || echo "Data not in DVC yet, using local file"
     
     - name: Add data and model to DVC
       run: |
