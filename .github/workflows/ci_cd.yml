@@ -212,7 +212,7 @@ jobs:
     
     - name: Commit DVC files
       run: |
-        git add data/housing.csv.dvc data/.gitignore
+        git add data/housing.csv.dvc
         git add models/model.pkl.dvc models/metrics.json.dvc
         git add .dvc/
         
