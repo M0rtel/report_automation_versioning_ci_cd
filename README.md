@@ -14,13 +14,10 @@
 ```
 report_automation_versioning_ci_cd/
 ├── data/                          # Данные (версионируются через DVC)
-│   ├── housing.csv               # Boston Housing dataset
-│   ├── housing.csv.dvc           # DVC метаданные (создается после dvc add)
+│   ├── housing.csv.dvc           # DVC метаданные (в Git)
 │   └── About_Dataset.md          # Описание датасета
-├── models/                        # Обученные модели (версионируются через DVC)
-│   ├── model.pkl                 # Обученная модель (создается при обучении)
-│   ├── model.pkl.dvc             # DVC метаданные (создается после dvc add)
-│   └── metrics.json              # Метрики модели
+├── models/                        # Обученные модели (генерируются при обучении)
+│   └── (model.pkl, metrics.json - игнорируются Git, версионируются через DVC)
 ├── scripts/                       # Скрипты обработки
 │   ├── validate_data.py          # Валидация данных
 │   ├── train_model.py            # Обучение модели
@@ -28,11 +25,8 @@ report_automation_versioning_ci_cd/
 │   └── init_dvc.py               # Инициализация DVC
 ├── config/                        # Конфигурация
 │   └── model_config.yaml         # Параметры модели и пороги качества
-├── reports/                       # Отчеты и результаты
-│   ├── data_validation_report.json
-│   ├── training_report.json
-│   ├── evaluation_report.json
-│   └── feature_importance.png
+├── reports/                       # Отчеты и результаты (генерируются)
+│   └── (все .json и .png файлы игнорируются Git)
 ├── tests/                         # Тесты
 │   ├── test_data_validation.py   # Тесты валидации данных
 │   ├── test_model_reproducibility.py  # Тесты воспроизводимости
@@ -40,60 +34,87 @@ report_automation_versioning_ci_cd/
 ├── .github/
 │   └── workflows/
 │       └── ci_cd.yml             # GitHub Actions CI/CD пайплайн
-├── .dvc/                          # DVC конфигурация (создается при dvc init)
-│   └── config                     # Конфигурация DVC
+├── .dvc/                          # DVC конфигурация
+│   └── config                    # Конфигурация DVC (в Git)
 ├── dvc.yaml                       # DVC pipeline определение
+├── dvc.lock                       # Lock файл для воспроизводимости
+├── params.yaml                    # Параметры модели для DVC
 ├── .dvcignore                    # Игнорируемые DVC файлы
-├── .gitignore                    # Игнорируемые Git файлы
+├── .gitignore                    # Игнорируемые Git файлы (все правила в одном файле)
 ├── requirements.txt              # Python зависимости
 ├── pytest.ini                   # Конфигурация pytest
 ├── Makefile                      # Make команды для удобства
-├── setup.sh                      # Скрипт первоначальной настройки
-└── main.py                       # Главный скрипт проекта
+├── main.py                       # Главный скрипт проекта
+└── README.md                     # Документация проекта
 ```
+
+**Примечание**: Файлы, которые игнорируются Git (через корневой `.gitignore`):
+- `data/housing.csv` - хранится в `.dvc/cache`, версионируется через `housing.csv.dvc`
+- `models/*.pkl`, `models/metrics.json` - генерируются при обучении, версионируются через DVC
+- `reports/*.json`, `reports/*.png` - генерируются при выполнении pipeline
+- `venv/` - виртуальное окружение (создается локально)
+- `.dvc/cache/`, `.dvc/tmp/`, `.dvc/state`, `.dvc/config.local` - локальный кеш DVC
 
 ## Установка
 
-### Быстрая настройка
+### Требования
+
+- Python 3.8 или выше
+- pip
+- Git (для версионирования)
+
+### Системные зависимости (Linux/Debian/Ubuntu)
+
+Перед созданием виртуального окружения установите необходимые системные пакеты:
 
 ```bash
-# Клонируйте репозиторий
+# Для Debian/Ubuntu
+sudo apt update
+sudo apt install python3-venv python3-pip
+```
+
+### Шаги установки
+
+1. Клонируйте репозиторий (если еще не сделано):
+```bash
 git clone <repository-url>
 cd report_automation_versioning_ci_cd
-
-# Автоматическая настройка
-./setup.sh
 ```
 
-### Ручная настройка
-
-1. Создайте виртуальное окружение:
+2. Создайте виртуальное окружение:
 ```bash
+# Linux/Mac
+python3 -m venv venv
+source venv/bin/activate
+
+# Windows
 python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# или
-venv\Scripts\activate  # Windows
+venv\Scripts\activate
 ```
 
-2. Установите зависимости:
+3. Обновите pip:
+```bash
+pip install --upgrade pip
+```
+
+4. Установите зависимости:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Инициализируйте DVC:
+5. Инициализируйте DVC:
 ```bash
-python scripts/init_dvc.py
-# или вручную:
-dvc init
-dvc add data/housing.csv
+python3 scripts/init_dvc.py
 ```
+
+> **Примечание**: Локально данные и модели хранятся в кеше DVC (`.dvc/cache`), а в CI/CD используются также версии, сохранённые в облачном хранилище Yandex Object Storage (remote `yandex`).
 
 ## Использование
 
 ### Валидация данных
 
 ```bash
-python scripts/validate_data.py
+python3 scripts/validate_data.py
 ```
 
 Проверяет качество данных перед обучением модели:
@@ -109,7 +130,7 @@ python scripts/validate_data.py
 ### Обучение модели
 
 ```bash
-python scripts/train_model.py
+python3 scripts/train_model.py
 ```
 
 Обучает модель RandomForestRegressor на данных Boston Housing и сохраняет:
@@ -120,7 +141,7 @@ python scripts/train_model.py
 ### Оценка модели
 
 ```bash
-python scripts/evaluate_model.py
+python3 scripts/evaluate_model.py
 ```
 
 Выполняет детальную оценку модели и создает:
@@ -181,17 +202,17 @@ GitHub Actions автоматически выполняет следующие 
 
 ### Локальный запуск проверок
 
-Перед push рекомендуется проверить:
+Перед push рекомендуется проверить (убедитесь, что виртуальное окружение активировано):
 
 ```bash
 # Валидация данных
-python scripts/validate_data.py
+python3 scripts/validate_data.py
 
 # Обучение и проверка качества
-python scripts/train_model.py
+python3 scripts/train_model.py
 
 # Оценка модели
-python scripts/evaluate_model.py
+python3 scripts/evaluate_model.py
 
 # Тесты
 pytest
@@ -199,7 +220,25 @@ pytest
 
 ## Версионирование с DVC
 
+DVC позволяет версионировать большие файлы (данные и модели) отдельно от Git. Файлы хранятся в кеше DVC, а в Git сохраняются только метаданные (`.dvc` файлы).
+
 ### Добавление данных в DVC
+
+Если файл уже отслеживается Git, сначала удалите его из индекса Git (файл останется на диске):
+
+```bash
+# Если файл уже в Git, удалите его из индекса
+git rm --cached data/housing.csv
+
+# Добавьте файл в DVC
+dvc add data/housing.csv
+
+# Добавьте метаданные DVC в Git
+git add data/housing.csv.dvc data/.gitignore
+git commit -m "Add data to DVC"
+```
+
+Если файл еще не в Git, просто добавьте его в DVC:
 
 ```bash
 dvc add data/housing.csv
@@ -230,41 +269,53 @@ dvc checkout data/housing.csv.dvc@v1.0
 dvc checkout models/model.pkl.dvc@v1.0
 ```
 
-### Настройка удаленного хранилища DVC
+### Хранилище DVC: локальный кеш + Yandex Object Storage
 
-Для продакшена рекомендуется использовать облачное хранилище:
+Проект использует комбинацию:
+- **локальный кеш DVC** (`.dvc/cache`) — для работы на локальной машине;
+- **облачное хранилище Yandex Object Storage** (remote `yandex`) — для обмена данными между разработчиком и CI/CD.
 
-**AWS S3:**
+**Как это работает:**
+- DVC автоматически создает локальный кеш при инициализации
+- Все версионированные файлы (данные, модели) хранятся в `.dvc/cache`
+- В Git сохраняются только метаданные (`.dvc` файлы), а не сами файлы
+- Для отправки данных и моделей в облако используется `dvc push` (remote `yandex`)
+- В CI/CD перед валидацией и обучением выполняется `dvc pull`, чтобы восстановить `data/housing.csv` и артефакты из Yandex Object Storage
+
+**Проверка кеша:**
 ```bash
-dvc remote add -d s3remote s3://my-bucket/dvc-storage
-dvc remote modify s3remote credentialpath ~/.aws/credentials
-dvc push
+# Просмотр расположения кеша
+dvc cache dir
+
+# Просмотр размера кеша
+du -sh .dvc/cache
 ```
 
-**Google Cloud Storage:**
+**Очистка кеша (при необходимости):**
 ```bash
-dvc remote add -d gsremote gs://my-bucket/dvc-storage
-dvc push
+# Очистить неиспользуемые файлы из кеша
+dvc cache clean
+
+# Очистить весь кеш (осторожно!)
+dvc cache clean --all
 ```
 
-**Azure Blob Storage:**
-```bash
-dvc remote add -d azure remote://my-container/dvc-storage
-dvc push
-```
-
-### Синхронизация
+### Работа с версиями
 
 ```bash
-# Загрузить данные/модели
-dvc pull
-
-# Загрузить изменения
-dvc push
-
-# Просмотреть статус
+# Просмотреть статус изменений
 dvc status
+
+# Воспроизвести pipeline (если изменились зависимости)
+dvc repro
+
+# Просмотреть историю изменений
+dvc diff
+
+# Отправить данные и модели в облако (Yandex Object Storage)
+dvc push
 ```
+
 
 ## Тестирование
 
@@ -293,7 +344,14 @@ pytest --cov=scripts --cov-report=html
 
 ### Параметры модели
 
-Параметры модели настраиваются в `config/model_config.yaml`:
+Параметры модели настраиваются в двух файлах:
+
+1. **`config/model_config.yaml`** - основной файл конфигурации, используется скриптами
+2. **`params.yaml`** - файл для DVC, отслеживает изменения параметров для воспроизводимости
+
+Оба файла содержат одинаковые параметры. При изменении параметров обновляйте оба файла:
+
+**`config/model_config.yaml`** (используется скриптами):
 
 ```yaml
 model:
@@ -319,6 +377,8 @@ thresholds:
   max_rmse: 5.0
 ```
 
+> **Примечание**: DVC отслеживает изменения в `config/model_config.yaml` через зависимости (`deps`). При изменении конфигурации DVC автоматически запустит переобучение при `dvc repro`.
+
 ### DVC Pipeline
 
 Определен в `dvc.yaml`:
@@ -326,18 +386,17 @@ thresholds:
 ```yaml
 stages:
   validate_data:
-    cmd: python scripts/validate_data.py
+    cmd: python3 scripts/validate_data.py
     deps: [data/housing.csv, scripts/validate_data.py]
     outs: [reports/data_validation_report.json]
 
   train_model:
-    cmd: python scripts/train_model.py
+    cmd: python3 scripts/train_model.py
     deps: [data/housing.csv, scripts/train_model.py, config/model_config.yaml]
-    params: [config/model_config.yaml]
     outs: [models/model.pkl, models/metrics.json, reports/training_report.json]
 
   evaluate_model:
-    cmd: python scripts/evaluate_model.py
+    cmd: python3 scripts/evaluate_model.py
     deps: [models/model.pkl, data/housing.csv, scripts/evaluate_model.py]
     outs: [reports/evaluation_report.json, reports/feature_importance.png]
 ```
@@ -373,15 +432,21 @@ stages:
 ### Работа с данными
 
 ```bash
-# Добавить новые данные
+# Добавить новые данные в DVC
 dvc add data/new_data.csv
+
+# Если файл уже был в Git, сначала удалите его из индекса
+# git rm --cached data/new_data.csv
+# dvc add data/new_data.csv
+
+# Добавить метаданные в Git
 git add data/new_data.csv.dvc
 git commit -m "Add new data version"
 
 # Просмотреть версии
 dvc list data/
 
-# Восстановить конкретную версию
+# Восстановить конкретную версию (по Git тегу или коммиту)
 dvc checkout data/housing.csv.dvc@v1.0
 ```
 
@@ -389,7 +454,7 @@ dvc checkout data/housing.csv.dvc@v1.0
 
 ```bash
 # Обучение через скрипт
-python scripts/train_model.py
+python3 scripts/train_model.py
 
 # Или через DVC pipeline
 dvc repro train_model
@@ -456,21 +521,13 @@ cat models/metrics.json
 cat config/model_config.yaml
 
 # Запустить с отладкой
-python -u scripts/train_model.py
+python3 -u scripts/train_model.py
 ```
 
 ## Дальнейшее развитие
 
-1. **Облачное хранилище**: Настройка S3/GCS/Azure для DVC
-2. **MLflow**: Интеграция для трекинга экспериментов
-3. **Мониторинг**: Добавление мониторинга дрифта данных
-4. **A/B тестирование**: Сравнение версий моделей
-5. **Автоматический деплой**: Деплой лучших моделей
-
-## Лицензия
-
-MIT
-
-## Авторы
-
-Проект создан для демонстрации автоматизации ML workflow с DVC и CI/CD.
+1. **MLflow**: Интеграция для трекинга экспериментов и регистрации моделей
+2. **Мониторинг**: Добавление мониторинга дрифта данных и деградации модели
+3. **A/B тестирование**: Сравнение версий моделей в production
+4. **Автоматический деплой**: Деплой лучших моделей на основе метрик качества
+5. **Расширенные тесты**: E2E тесты, интеграционные тесты производительности

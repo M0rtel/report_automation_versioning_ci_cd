@@ -1,0 +1,70 @@
+schema: '2.0'
+stages:
+  validate_data:
+    cmd: python scripts/validate_data.py
+    deps:
+    - path: data/housing.csv
+      hash: md5
+      md5: d4accdce7a25600298819f8e28e8d593
+      size: 49082
+    - path: scripts/validate_data.py
+      hash: md5
+      md5: 74c572822052291981fcf7b7c7fc4be3
+      size: 7081
+    outs:
+    - path: reports/data_validation_report.json
+      hash: md5
+      md5: f272da0a4e6c20e6b43db80914ee6f3f
+      size: 2703
+  train_model:
+    cmd: python scripts/train_model.py
+    deps:
+    - path: config/model_config.yaml
+      hash: md5
+      md5: d014e3ba2fb8d51aa69462fee8b57945
+      size: 325
+    - path: data/housing.csv
+      hash: md5
+      md5: d4accdce7a25600298819f8e28e8d593
+      size: 49082
+    - path: scripts/train_model.py
+      hash: md5
+      md5: 39f5ac3de198194a12dce1d0f9671fe8
+      size: 6020
+    outs:
+    - path: models/metrics.json
+      hash: md5
+      md5: 03f781434d86cbe74283688cc21a8ae4
+      size: 87
+    - path: models/model.pkl
+      hash: md5
+      md5: 31be6cd52dbf42f60a555a7872280dce
+      size: 2288091
+    - path: reports/training_report.json
+      hash: md5
+      md5: d85b1c6e6b65c33a1e0b97815baa5196
+      size: 823
+  evaluate_model:
+    cmd: python scripts/evaluate_model.py
+    deps:
+    - path: data/housing.csv
+      hash: md5
+      md5: d4accdce7a25600298819f8e28e8d593
+      size: 49082
+    - path: models/model.pkl
+      hash: md5
+      md5: 31be6cd52dbf42f60a555a7872280dce
+      size: 2288091
+    - path: scripts/evaluate_model.py
+      hash: md5
+      md5: 1e289cf3289d120e971d72924c113ee1
+      size: 4827
+    outs:
+    - path: reports/evaluation_report.json
+      hash: md5
+      md5: 1df5ca590f2df295fa87160c7b52f430
+      size: 924
+    - path: reports/feature_importance.png
+      hash: md5
+      md5: 1c0fbe5e1be5cf64b9ec7374459ed4f4
+      size: 40626

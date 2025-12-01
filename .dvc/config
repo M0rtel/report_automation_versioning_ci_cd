@@ -1,6 +1,5 @@
 [core]
-    remote = local
-
-['remote "local"']
-    url = .dvc/cache
-
+    remote = yandex
+['remote "yandex"']
+    url = s3://itmo234/dvc-storage
+    endpointurl = https://storage.yandexcloud.net
