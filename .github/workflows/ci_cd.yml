@@ -212,9 +212,9 @@ jobs:
     
     - name: Commit DVC files
       run: |
-        git add data/housing.csv.dvc
-        git add models/model.pkl.dvc models/metrics.json.dvc
-        git add .dvc/
+        git add data/housing.csv.dvc 2>/dev/null || echo "No data .dvc file to add"
+        git add models/model.pkl.dvc models/metrics.json.dvc 2>/dev/null || echo "No model .dvc files to add"
+        git add .dvc/ 2>/dev/null || echo "No .dvc changes to add"
         
         # Проверяем, есть ли изменения для коммита
         if [ -n "$(git status --porcelain)" ]; then
