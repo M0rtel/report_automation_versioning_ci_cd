@@ -9,7 +9,10 @@ on:
 
 env:
   PYTHON_VERSION: '3.10'
-  DVC_REMOTE: 'local'
+  DVC_REMOTE: 'yandex'
+  AWS_ACCESS_KEY_ID: ${{ secrets.YA_S3_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.YA_S3_SECRET_ACCESS_KEY }}
+  AWS_DEFAULT_REGION: ru-central1
 
 jobs:
   validate-data:
@@ -31,6 +34,10 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+
+    - name: Pull data from DVC
+      run: |
+        dvc pull data/housing.csv.dvc
     
     - name: Validate data
       run: |
@@ -68,14 +75,8 @@ jobs:
       run: |
         dvc init --no-scm
     
-    - name: Configure DVC
-      run: |
-        # Используем локальное хранилище DVC
-        mkdir -p .dvc/cache
-    
     - name: Pull data from DVC
       run: |
-        # Если данные уже версионированы в DVC
         dvc pull data/housing.csv.dvc || echo "Data not in DVC yet, using local file"
     
     - name: Train model
@@ -204,6 +205,10 @@ jobs:
         
         # Добавляем метрики
         dvc add models/metrics.json || echo "Metrics already in DVC"
+    
+    - name: Push data and model to DVC remote
+      run: |
+        dvc push
     
     - name: Commit DVC files
       run: |
